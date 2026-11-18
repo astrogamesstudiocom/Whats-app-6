@@ -1,0 +1,1010 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Public directory profile, real-time online presence, and E2EE identity public key.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "statusText": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "identityPublicKey": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "keyFingerprint": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "discoverable": {
+          "type": "boolean"
+        },
+        "online": {
+          "type": "boolean"
+        },
+        "lastSeen": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "discoverable",
+        "online",
+        "lastSeen",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PrivateAccount": {
+      "title": "PrivateAccount",
+      "description": "Private PII and device push registration tokens isolated from public profiles.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254
+        },
+        "emailVerified": {
+          "type": "boolean"
+        },
+        "fcmTokens": {
+          "type": "array",
+          "description": "Bounded list of up to 10 registered FCM web push tokens."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "email",
+        "emailVerified",
+        "updatedAt"
+      ]
+    },
+    "PrivateKeyBackup": {
+      "title": "PrivateKeyBackup",
+      "description": "Zero-knowledge passphrase-encrypted ECDH private key backup for cross-device E2EE recovery.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "salt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "iv": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "encryptedPrivateKey": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "keyFingerprint": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "iterations": {
+          "type": "number"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "salt",
+        "iv",
+        "encryptedPrivateKey",
+        "keyFingerprint",
+        "iterations",
+        "updatedAt"
+      ]
+    },
+    "EmailDirectoryEntry": {
+      "title": "EmailDirectoryEntry",
+      "description": "SHA-256 email hash lookup mapping to public UID without exposing plaintext emails.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "updatedAt"
+      ]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Direct or group conversation room metadata including optional group icon and E2EE key epoch.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "direct",
+            "group"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "iconURL": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "keyEpoch": {
+          "type": "number"
+        },
+        "createdBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "memberCount": {
+          "type": "number"
+        },
+        "lastMessageText": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "lastMessageSenderId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "lastMessageAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "createdBy",
+        "memberCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ConversationMember": {
+      "title": "ConversationMember",
+      "description": "Subcollection membership record with role and delivery/read receipt watermarks.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "admin",
+            "member"
+          ]
+        },
+        "joinedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastDeliveredAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastReadAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "role",
+        "joinedAt"
+      ]
+    },
+    "ConversationKeyEnvelope": {
+      "title": "ConversationKeyEnvelope",
+      "description": "ECDH + HKDF wrapped AES-256-GCM conversation room key scoped per epoch and recipient member.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "conversationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "recipientUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderPublicKey": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "keyEpoch": {
+          "type": "number"
+        },
+        "wrappedKey": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "iv": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "conversationId",
+        "recipientUid",
+        "senderUid",
+        "senderPublicKey",
+        "keyEpoch",
+        "wrappedKey",
+        "iv",
+        "updatedAt"
+      ]
+    },
+    "ConversationRef": {
+      "title": "ConversationRef",
+      "description": "User-scoped conversation inbox reference for fast real-time sidebar synchronization.",
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "direct",
+            "group"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "iconURL": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "peerUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "peerPhotoURL": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "lastMessageText": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "lastMessageSenderId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "lastMessageAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "unreadCount": {
+          "type": "number"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "conversationId",
+        "type",
+        "lastMessageAt",
+        "updatedAt"
+      ]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "End-to-end encrypted or call-event message inside a conversation.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "conversationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "text",
+            "image",
+            "video",
+            "document",
+            "audio",
+            "call"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "encrypted": {
+          "type": "boolean"
+        },
+        "ciphertext": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "iv": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "keyEpoch": {
+          "type": "number"
+        },
+        "mediaUrl": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "mediaName": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "mediaMime": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "mediaSize": {
+          "type": "number"
+        },
+        "mediaEncrypted": {
+          "type": "boolean"
+        },
+        "mediaIv": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "audioDuration": {
+          "type": "number"
+        },
+        "replyToId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "replyToPreview": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "deleted": {
+          "type": "boolean"
+        },
+        "editedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "conversationId",
+        "senderId",
+        "senderName",
+        "type",
+        "text",
+        "createdAt"
+      ]
+    },
+    "TypingIndicator": {
+      "title": "TypingIndicator",
+      "description": "Ephemeral typing presence state per member in a conversation.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "isTyping": {
+          "type": "boolean"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "isTyping",
+        "updatedAt"
+      ]
+    },
+    "CallSession": {
+      "title": "CallSession",
+      "description": "WebRTC audio/video 1:1 or group call session metadata and lifecycle state.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "conversationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "callerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "callerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "callerPhoto": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "callType": {
+          "type": "string",
+          "enum": [
+            "audio",
+            "video"
+          ]
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "direct",
+            "group"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ringing",
+            "active",
+            "ended",
+            "rejected",
+            "missed"
+          ]
+        },
+        "durationSeconds": {
+          "type": "number"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "conversationId",
+        "callerId",
+        "callerName",
+        "callType",
+        "mode",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CallParticipant": {
+      "title": "CallParticipant",
+      "description": "Participant state and media mute status inside a WebRTC call session.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "caller",
+            "callee"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ringing",
+            "joined",
+            "rejected",
+            "left",
+            "missed"
+          ]
+        },
+        "audioMuted": {
+          "type": "boolean"
+        },
+        "videoOff": {
+          "type": "boolean"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "role",
+        "status",
+        "audioMuted",
+        "videoOff",
+        "updatedAt"
+      ]
+    },
+    "WebRtcSignal": {
+      "title": "WebRtcSignal",
+      "description": "Peer-addressed SDP offer, SDP answer, or ICE candidate signaling packet.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "fromUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "toUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "offer",
+            "answer",
+            "ice-candidate"
+          ]
+        },
+        "sdp": {
+          "type": "string",
+          "maxLength": 32768
+        },
+        "candidate": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "sdpMid": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "sdpMLineIndex": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "fromUid",
+        "toUid",
+        "type",
+        "createdAt"
+      ]
+    },
+    "CallInvite": {
+      "title": "CallInvite",
+      "description": "User-scoped incoming/outgoing call invite and call history log entry.",
+      "type": "object",
+      "properties": {
+        "callId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "conversationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "conversationTitle": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "callerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "callerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "callerPhoto": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "callType": {
+          "type": "string",
+          "enum": [
+            "audio",
+            "video"
+          ]
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "direct",
+            "group"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ringing",
+            "active",
+            "ended",
+            "rejected",
+            "missed"
+          ]
+        },
+        "durationSeconds": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "callId",
+        "conversationId",
+        "callerId",
+        "callerName",
+        "callType",
+        "mode",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserNotification": {
+      "title": "UserNotification",
+      "description": "In-app notification record for missed calls and new messages.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "missed_call",
+            "message",
+            "call"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "conversationId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "callId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "read": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "type",
+        "title",
+        "body",
+        "read",
+        "createdAt"
+      ]
+    },
+    "ConnectionCheck": {
+      "title": "ConnectionCheck",
+      "description": "Read-only connection verification document.",
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Public directory profile, presence status, and E2EE public key."
+    },
+    "/users/{userId}/private/account": {
+      "schema": {
+        "$ref": "#/entities/PrivateAccount"
+      },
+      "description": "Private PII and FCM token storage accessible only by the owning user."
+    },
+    "/users/{userId}/private/keyBackup": {
+      "schema": {
+        "$ref": "#/entities/PrivateKeyBackup"
+      },
+      "description": "Passphrase-encrypted E2EE private key backup accessible only by the owning user."
+    },
+    "/users/{userId}/conversationRefs/{conversationId}": {
+      "schema": {
+        "$ref": "#/entities/ConversationRef"
+      },
+      "description": "User-scoped conversation index for real-time inbox rendering."
+    },
+    "/users/{userId}/callInvites/{callId}": {
+      "schema": {
+        "$ref": "#/entities/CallInvite"
+      },
+      "description": "User-scoped incoming call alerts and call history."
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": {
+        "$ref": "#/entities/UserNotification"
+      },
+      "description": "User-scoped missed call and message notifications."
+    },
+    "/emailDirectory/{emailHash}": {
+      "schema": {
+        "$ref": "#/entities/EmailDirectoryEntry"
+      },
+      "description": "Exact SHA-256 email hash lookup for private contact discovery."
+    },
+    "/conversations/{conversationId}": {
+      "schema": {
+        "$ref": "#/entities/Conversation"
+      },
+      "description": "Conversation metadata for 1:1 and group chats."
+    },
+    "/conversations/{conversationId}/members/{memberId}": {
+      "schema": {
+        "$ref": "#/entities/ConversationMember"
+      },
+      "description": "Membership records, roles, and delivery/read receipt watermarks."
+    },
+    "/conversations/{conversationId}/keyEnvelopes/{envelopeId}": {
+      "schema": {
+        "$ref": "#/entities/ConversationKeyEnvelope"
+      },
+      "description": "Per-epoch E2EE wrapped symmetric room keys addressed to conversation members."
+    },
+    "/conversations/{conversationId}/messages/{messageId}": {
+      "schema": {
+        "$ref": "#/entities/ChatMessage"
+      },
+      "description": "End-to-end encrypted messages belonging to a conversation."
+    },
+    "/conversations/{conversationId}/typing/{userId}": {
+      "schema": {
+        "$ref": "#/entities/TypingIndicator"
+      },
+      "description": "Real-time typing state per conversation member."
+    },
+    "/calls/{callId}": {
+      "schema": {
+        "$ref": "#/entities/CallSession"
+      },
+      "description": "WebRTC call session metadata and lifecycle state."
+    },
+    "/calls/{callId}/participants/{participantId}": {
+      "schema": {
+        "$ref": "#/entities/CallParticipant"
+      },
+      "description": "Participants and live media mute state in a call."
+    },
+    "/calls/{callId}/signals/{signalId}": {
+      "schema": {
+        "$ref": "#/entities/WebRtcSignal"
+      },
+      "description": "Peer-to-peer WebRTC SDP and ICE signaling packets."
+    },
+    "/test/{docId}": {
+      "schema": {
+        "$ref": "#/entities/ConnectionCheck"
+      },
+      "description": "Connectivity verification endpoint."
+    }
+  }
+}

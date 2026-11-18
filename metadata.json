@@ -1,0 +1,12 @@
+{
+  "name": "My Chatting Web",
+  "description": "Real-time messaging, voice notes, media sharing, and WebRTC audio/video calling platform powered by Firebase.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "notifications"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

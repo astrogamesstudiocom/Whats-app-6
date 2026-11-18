@@ -1,0 +1,21 @@
+{
+  "firestore": {
+    "database": "ai-studio-85f04a81-d937-4317-af8b-4e9baa13de1d",
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log"
+      ]
+    }
+  ]
+}
