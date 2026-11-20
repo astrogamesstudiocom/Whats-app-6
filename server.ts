@@ -193,17 +193,53 @@ messaging.onBackgroundMessage((payload) => {
   app.post(
     '/api/media/upload',
     requireVerifiedAuth,
-    express.raw({ type: '*/*', limit: '35mb' }),
+    express.raw({ type: '*/*', limit: '32mb' }),
     (req: AuthedRequest, res: Response) => {
       const conversationId = sanitizeId(
         String(req.headers['x-conversation-id'] || '')
       );
-      const originalName = String(req.headers['x-file-name'] || 'attachment')
+      const rawFileNameHeader = String(req.headers['x-file-name'] || 'attachment');
+      let decodedName = rawFileNameHeader;
+      try {
+        decodedName = decodeURIComponent(rawFileNameHeader);
+      } catch {
+        // Keep raw value if malformed URI encoding
+      }
+      const originalName = decodedName
         .replace(/[^a-zA-Z0-9._\- ]/g, '_')
         .slice(0, 120);
-      const mimeType = String(
-        req.headers['content-type'] || 'application/octet-stream'
-      );
+
+      const extMimeMap: Record<string, string> = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+        '.avif': 'image/avif',
+        '.heic': 'image/heic',
+        '.heif': 'image/heif',
+        '.bmp': 'image/bmp',
+        '.svg': 'image/svg+xml',
+        '.mp4': 'video/mp4',
+        '.mov': 'video/quicktime',
+        '.webm': 'audio/webm',
+        '.m4a': 'audio/mp4',
+        '.mp3': 'audio/mpeg',
+        '.ogg': 'audio/ogg',
+        '.oga': 'audio/ogg',
+        '.wav': 'audio/wav',
+        '.aac': 'audio/aac',
+        '.pdf': 'application/pdf',
+      };
+
+      const rawMime = String(req.headers['content-type'] || 'application/octet-stream')
+        .trim()
+        .slice(0, 120);
+      const fileExt = path.extname(originalName).toLowerCase();
+      const mimeType =
+        (!rawMime || rawMime === 'application/octet-stream') && extMimeMap[fileExt]
+          ? extMimeMap[fileExt]
+          : rawMime || 'application/octet-stream';
 
       if (!conversationId) {
         res.status(400).json({ error: 'Missing valid x-conversation-id header.' });
@@ -221,15 +257,30 @@ messaging.onBackgroundMessage((payload) => {
         return;
       }
 
-      if (body.length > 35 * 1024 * 1024) {
-        res.status(413).json({ error: 'File exceeds 35MB server limit.' });
+      if (body.length > 32 * 1024 * 1024) {
+        res.status(413).json({ error: 'File exceeds 32MB server limit.' });
         return;
       }
 
       const convDir = path.join(UPLOAD_ROOT, conversationId);
       fs.mkdirSync(convDir, { recursive: true });
 
-      const ext = path.extname(originalName).slice(0, 12);
+      const fallbackExtMap: Record<string, string> = {
+        'image/jpeg': '.jpg',
+        'image/png': '.png',
+        'image/webp': '.webp',
+        'image/gif': '.gif',
+        'audio/webm': '.webm',
+        'audio/mp4': '.m4a',
+        'audio/ogg': '.ogg',
+        'audio/mpeg': '.mp3',
+        'video/mp4': '.mp4',
+      };
+      const cleanMimeBase = mimeType.split(';')[0].trim().toLowerCase();
+      const ext =
+        path.extname(originalName).slice(0, 12) ||
+        fallbackExtMap[cleanMimeBase] ||
+        '';
       const safeFileId = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
       const diskPath = path.join(convDir, safeFileId);
       fs.writeFileSync(diskPath, body);
@@ -254,7 +305,7 @@ messaging.onBackgroundMessage((payload) => {
     }
   );
 
-  // Authenticated media fetch
+  // Media fetch with range & cross-origin support for audio/video/image playback
   app.get(
     '/api/media/file/:conversationId/:fileId',
     (req: Request, res: Response) => {
@@ -283,6 +334,8 @@ messaging.onBackgroundMessage((payload) => {
         }
       }
 
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
       res.setHeader('Cache-Control', 'private, max-age=86400');
       res.sendFile(diskPath);
     }

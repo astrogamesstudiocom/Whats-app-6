@@ -114,21 +114,45 @@ export function ChatWindow({
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [brokenMediaIds, setBrokenMediaIds] = useState<Set<string>>(
+    () => new Set()
+  );
 
   // Voice Note Recording State
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const activeStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordTimerRef = useRef<number | null>(null);
   const recordStartRef = useRef<number>(0);
 
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const audioInputRef = useRef<HTMLInputElement | null>(null);
+  const docInputRef = useRef<HTMLInputElement | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const emojiContainerRef = useRef<HTMLDivElement | null>(null);
   const attachContainerRef = useRef<HTMLDivElement | null>(null);
   const scrollBottomRef = useRef<HTMLDivElement | null>(null);
   const typingTimeoutRef = useRef<number | null>(null);
+
+  const stopActiveStream = () => {
+    if (activeStreamRef.current) {
+      for (const track of activeStreamRef.current.getTracks()) {
+        track.stop();
+      }
+      activeStreamRef.current = null;
+    }
+  };
+
+  const markMediaBroken = (id: string) => {
+    setBrokenMediaIds((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  };
 
   // Subscribe to active conversation, members, messages, typing
   useEffect(() => {
@@ -209,8 +233,13 @@ export function ChatWindow({
         mediaRecorderRef.current &&
         mediaRecorderRef.current.state !== 'inactive'
       ) {
-        mediaRecorderRef.current.stop();
+        try {
+          mediaRecorderRef.current.stop();
+        } catch {
+          // ignore cleanup stop errors
+        }
       }
+      stopActiveStream();
     };
   }, [conversationId]);
 
@@ -321,12 +350,11 @@ export function ChatWindow({
     }
   };
 
-  const triggerAttachmentPicker = (accept: string) => {
+  const triggerAttachmentPicker = (kind: 'photo' | 'audio' | 'doc') => {
     setShowAttachMenu(false);
-    if (fileInputRef.current) {
-      fileInputRef.current.accept = accept;
-      fileInputRef.current.click();
-    }
+    if (kind === 'photo') photoInputRef.current?.click();
+    else if (kind === 'audio') audioInputRef.current?.click();
+    else docInputRef.current?.click();
   };
 
   const handleFileSelected = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -341,7 +369,7 @@ export function ChatWindow({
         conversationId,
         currentUser.uid,
         file,
-        file.name,
+        file.name || `upload_${Date.now()}`,
         (pct) => setUploadProgress(pct)
       );
 
@@ -376,23 +404,51 @@ export function ChatWindow({
     setUploadNotice(null);
     setShowEmojiPicker(false);
     setShowAttachMenu(false);
+
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.mediaDevices?.getUserMedia ||
+      typeof MediaRecorder === 'undefined'
+    ) {
+      setUploadNotice(
+        'Voice recording is not supported in this browser or context.'
+      );
+      return;
+    }
+
     try {
+      stopActiveStream();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const preferredMime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm')
-          ? 'audio/webm'
+      activeStreamRef.current = stream;
+
+      const candidateMimes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/ogg;codecs=opus',
+      ];
+      const preferredMime =
+        typeof MediaRecorder.isTypeSupported === 'function'
+          ? candidateMimes.find((m) => MediaRecorder.isTypeSupported(m)) || ''
           : '';
+
       const recorder = preferredMime
         ? new MediaRecorder(stream, { mimeType: preferredMime })
         : new MediaRecorder(stream);
 
       audioChunksRef.current = [];
       recorder.ondataavailable = (ev) => {
-        if (ev.data.size > 0) audioChunksRef.current.push(ev.data);
+        if (ev.data && ev.data.size > 0) {
+          audioChunksRef.current.push(ev.data);
+        }
+      };
+      recorder.onerror = () => {
+        stopActiveStream();
+        setIsRecording(false);
+        setUploadNotice('Voice recorder encountered a microphone error.');
       };
       recorder.onstop = () => {
-        for (const t of stream.getTracks()) t.stop();
+        stopActiveStream();
       };
 
       mediaRecorderRef.current = recorder;
@@ -403,8 +459,22 @@ export function ChatWindow({
       recordTimerRef.current = window.setInterval(() => {
         setRecordSeconds(Math.floor((Date.now() - recordStartRef.current) / 1000));
       }, 500);
-    } catch {
-      setUploadNotice('Microphone permission is required to record voice messages.');
+    } catch (err) {
+      stopActiveStream();
+      const name = err instanceof Error ? err.name : '';
+      if (name === 'NotAllowedError' || name === 'SecurityError') {
+        setUploadNotice(
+          'Microphone permission was denied. Allow mic access in your browser to send voice messages.'
+        );
+      } else if (name === 'NotFoundError') {
+        setUploadNotice('No microphone device was detected.');
+      } else {
+        setUploadNotice(
+          err instanceof Error
+            ? `Unable to access microphone: ${err.message}`
+            : 'Microphone permission is required to record voice messages.'
+        );
+      }
     }
   };
 
@@ -413,12 +483,20 @@ export function ChatWindow({
       window.clearInterval(recordTimerRef.current);
       recordTimerRef.current = null;
     }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.onstop = () => {
-        // discard
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.onstop = () => {
+        stopActiveStream();
       };
-      mediaRecorderRef.current.stop();
+      try {
+        recorder.stop();
+      } catch {
+        stopActiveStream();
+      }
+    } else {
+      stopActiveStream();
     }
+    mediaRecorderRef.current = null;
     audioChunksRef.current = [];
     setIsRecording(false);
     setRecordSeconds(0);
@@ -437,28 +515,59 @@ export function ChatWindow({
       recordTimerRef.current = null;
     }
 
-    await new Promise<void>((resolve) => {
-      const prevOnStop = recorder.onstop;
-      recorder.onstop = (ev) => {
-        if (typeof prevOnStop === 'function') {
-          prevOnStop.call(recorder, ev);
+    if (recorder.state !== 'inactive') {
+      await new Promise<void>((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          stopActiveStream();
+          resolve();
+        };
+        const safetyTimer = window.setTimeout(finish, 2000);
+        const prevOnStop = recorder.onstop;
+        recorder.onstop = (ev) => {
+          window.clearTimeout(safetyTimer);
+          if (typeof prevOnStop === 'function') {
+            prevOnStop.call(recorder, ev);
+          }
+          finish();
+        };
+        try {
+          if (typeof recorder.requestData === 'function') {
+            recorder.requestData();
+          }
+          recorder.stop();
+        } catch {
+          window.clearTimeout(safetyTimer);
+          finish();
         }
-        resolve();
-      };
-      recorder.stop();
-    });
+      });
+    } else {
+      stopActiveStream();
+    }
 
+    mediaRecorderRef.current = null;
     setIsRecording(false);
     setRecordSeconds(0);
 
-    const mime = recorder.mimeType || 'audio/webm';
+    const mime = recorder.mimeType || audioChunksRef.current[0]?.type || 'audio/webm';
     const blob = new Blob(audioChunksRef.current, { type: mime });
     audioChunksRef.current = [];
-    if (blob.size === 0) return;
+    if (blob.size === 0) {
+      setUploadNotice(
+        'No audio was captured. Record for at least 1 second before sending.'
+      );
+      return;
+    }
 
     setUploadProgress(15);
     try {
-      const ext = mime.includes('mp4') ? 'm4a' : 'webm';
+      const ext = mime.includes('mp4')
+        ? 'm4a'
+        : mime.includes('ogg')
+          ? 'ogg'
+          : 'webm';
       const uploaded = await uploadChatMedia(
         conversationId,
         currentUser.uid,
@@ -777,18 +886,34 @@ export function ChatWindow({
                         ) : (
                           <>
                             {msg.type === 'image' && msg.mediaUrl && (
-                              <button
-                                type="button"
-                                onClick={() => setLightboxUrl(msg.mediaUrl!)}
-                                className="mb-1.5 block overflow-hidden rounded-xl"
-                              >
-                                <img
-                                  src={msg.mediaUrl}
-                                  alt={msg.mediaName || 'Shared image'}
-                                  referrerPolicy="no-referrer"
-                                  className="max-h-72 w-auto rounded-xl object-cover transition-transform duration-200 hover:scale-[1.02]"
-                                />
-                              </button>
+                              brokenMediaIds.has(msg.id) ? (
+                                <div
+                                  className={`mb-1.5 flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-xs ${
+                                    isOwn
+                                      ? 'bg-white/15 text-indigo-100'
+                                      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                                  }`}
+                                >
+                                  <ImageIcon className="h-4 w-4 shrink-0" />
+                                  <span>
+                                    Photo unavailable ({msg.mediaName || 'image'})
+                                  </span>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setLightboxUrl(msg.mediaUrl!)}
+                                  className="mb-1.5 block overflow-hidden rounded-xl"
+                                >
+                                  <img
+                                    src={msg.mediaUrl}
+                                    alt={msg.mediaName || 'Shared image'}
+                                    referrerPolicy="no-referrer"
+                                    onError={() => markMediaBroken(msg.id)}
+                                    className="max-h-72 w-auto rounded-xl object-cover transition-transform duration-200 hover:scale-[1.02]"
+                                  />
+                                </button>
+                              )
                             )}
 
                             {msg.type === 'video' && msg.mediaUrl && (
@@ -800,18 +925,38 @@ export function ChatWindow({
                             )}
 
                             {msg.type === 'audio' && msg.mediaUrl && (
-                              <div className="flex items-center gap-2.5 py-0.5">
-                                <audio
-                                  src={msg.mediaUrl}
-                                  controls
-                                  className="h-9 max-w-[230px] sm:max-w-[260px]"
-                                />
-                                {typeof msg.audioDuration === 'number' && (
-                                  <span className="rounded-md bg-black/10 px-1.5 py-0.5 font-mono text-[11px] opacity-90 tabular-nums dark:bg-white/10">
-                                    {formatDuration(msg.audioDuration)}
+                              brokenMediaIds.has(msg.id) ? (
+                                <div
+                                  className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs ${
+                                    isOwn
+                                      ? 'bg-white/15 text-indigo-100'
+                                      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                                  }`}
+                                >
+                                  <Mic className="h-4 w-4 shrink-0" />
+                                  <span>
+                                    Voice message unavailable
+                                    {typeof msg.audioDuration === 'number'
+                                      ? ` (${formatDuration(msg.audioDuration)})`
+                                      : ''}
                                   </span>
-                                )}
-                              </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2.5 py-0.5">
+                                  <audio
+                                    src={msg.mediaUrl}
+                                    controls
+                                    preload="metadata"
+                                    onError={() => markMediaBroken(msg.id)}
+                                    className="h-9 max-w-[230px] sm:max-w-[260px]"
+                                  />
+                                  {typeof msg.audioDuration === 'number' && (
+                                    <span className="rounded-md bg-black/10 px-1.5 py-0.5 font-mono text-[11px] opacity-90 tabular-nums dark:bg-white/10">
+                                      {formatDuration(msg.audioDuration)}
+                                    </span>
+                                  )}
+                                </div>
+                              )
                             )}
 
                             {msg.type === 'document' && msg.mediaUrl && (
@@ -1090,9 +1235,23 @@ export function ChatWindow({
         ) : (
           <div className="flex items-end gap-2">
             <input
-              ref={fileInputRef}
+              ref={photoInputRef}
               type="file"
-              accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+              accept="image/*,video/*"
+              className="hidden"
+              onChange={handleFileSelected}
+            />
+            <input
+              ref={audioInputRef}
+              type="file"
+              accept="audio/*"
+              className="hidden"
+              onChange={handleFileSelected}
+            />
+            <input
+              ref={docInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,*/*"
               className="hidden"
               onChange={handleFileSelected}
             />
@@ -1110,7 +1269,7 @@ export function ChatWindow({
                   >
                     <button
                       type="button"
-                      onClick={() => triggerAttachmentPicker('image/*,video/*')}
+                      onClick={() => triggerAttachmentPicker('photo')}
                       className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 transition-colors hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-200 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-300"
                     >
                       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400">
@@ -1120,7 +1279,7 @@ export function ChatWindow({
                     </button>
                     <button
                       type="button"
-                      onClick={() => triggerAttachmentPicker('audio/*')}
+                      onClick={() => triggerAttachmentPicker('audio')}
                       className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 transition-colors hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-200 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-300"
                     >
                       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400">
@@ -1130,9 +1289,7 @@ export function ChatWindow({
                     </button>
                     <button
                       type="button"
-                      onClick={() =>
-                        triggerAttachmentPicker('.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,*/*')
-                      }
+                      onClick={() => triggerAttachmentPicker('doc')}
                       className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 transition-colors hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-200 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-300"
                     >
                       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-400">

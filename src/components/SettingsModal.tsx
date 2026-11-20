@@ -90,6 +90,7 @@ export function SettingsModal({
   const [photoURL, setPhotoURL] = useState(currentUser.photoURL || '');
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
   const [pushStatus, setPushStatus] = useState<string | null>(null);
   const [health, setHealth] = useState<InfrastructureHealth | null>(null);
@@ -103,11 +104,18 @@ export function SettingsModal({
 
   const handleAvatarUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
+    setAvatarError(null);
     setUploadingAvatar(true);
     try {
       const url = await uploadUserAvatar(currentUser.uid, file);
       setPhotoURL(url);
+      setSavedNotice('Photo uploaded — click Save Changes to update your profile.');
+    } catch (err) {
+      setAvatarError(
+        err instanceof Error ? err.message : 'Failed to upload profile photo.'
+      );
     } finally {
       setUploadingAvatar(false);
     }
@@ -350,6 +358,11 @@ export function SettingsModal({
                   <p className="mt-1 truncate font-mono text-[11px] text-slate-400">
                     {currentUser.uid}
                   </p>
+                  {avatarError && (
+                    <p className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">
+                      {avatarError}
+                    </p>
+                  )}
                 </div>
               </div>
 

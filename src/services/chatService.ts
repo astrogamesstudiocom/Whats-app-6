@@ -519,7 +519,7 @@ export async function sendMessage(params: {
   const msgId = makeId('msg');
   const cleanText = trimTo(params.text, PAYLOAD_LIMITS.MESSAGE_TEXT_MAX);
   const senderName = trimTo(
-    params.sender.displayName,
+    params.sender.displayName || 'User',
     PAYLOAD_LIMITS.DISPLAY_NAME_MAX
   );
 
