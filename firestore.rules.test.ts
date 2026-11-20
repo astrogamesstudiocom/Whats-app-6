@@ -119,4 +119,20 @@ export const DIRTY_DOZEN_TESTS: DirtyDozenCase[] = [
     expectedResult: 'PERMISSION_DENIED',
     rationale: 'emailDirectory permits exact-hash get lookups only, never list scraping',
   },
+  {
+    id: 'DD-13-media-blob-list-scrape',
+    collection: 'conversations/conv_1/mediaBlobs',
+    actor: 'verified_user_a',
+    operation: 'list',
+    expectedResult: 'PERMISSION_DENIED',
+    rationale: 'Media blobs permit exact ID getDoc only to prevent enumeration scraping',
+  },
+  {
+    id: 'DD-14-non-member-media-read',
+    collection: 'conversations/conv_1/mediaBlobs/media_1',
+    actor: 'verified_outsider_c',
+    operation: 'get',
+    expectedResult: 'PERMISSION_DENIED',
+    rationale: 'Conversation media blobs are strictly isolated to conversation members',
+  },
 ];

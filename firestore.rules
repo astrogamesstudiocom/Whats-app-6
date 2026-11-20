@@ -181,6 +181,39 @@ service cloud.firestore {
         data.createdAt is timestamp;
     }
 
+    function isValidMediaBlob(data) {
+      return data.keys().hasAll(['id', 'conversationId', 'uploaderUid', 'fileName', 'mimeType', 'size', 'chunkCount', 'createdAt']) &&
+        data.keys().hasOnly(['id', 'conversationId', 'uploaderUid', 'fileName', 'mimeType', 'size', 'chunkCount', 'createdAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.conversationId) &&
+        isValidId(data.uploaderUid) &&
+        data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 255 &&
+        data.mimeType is string && data.mimeType.size() >= 1 && data.mimeType.size() <= 120 &&
+        data.size is number && data.size >= 1 && data.size <= 8000000 &&
+        data.chunkCount is number && data.chunkCount >= 1 && data.chunkCount <= 25 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidMediaChunk(data) {
+      return data.keys().hasAll(['index', 'uploaderUid', 'data', 'createdAt']) &&
+        data.keys().hasOnly(['index', 'uploaderUid', 'data', 'createdAt']) &&
+        data.index is number && data.index >= 0 && data.index <= 24 &&
+        isValidId(data.uploaderUid) &&
+        data.data is string && data.data.size() >= 1 && data.data.size() <= 550000 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidAvatarMedia(data) {
+      return data.keys().hasAll(['id', 'uploaderUid', 'mimeType', 'size', 'data', 'createdAt']) &&
+        data.keys().hasOnly(['id', 'uploaderUid', 'mimeType', 'size', 'data', 'createdAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.uploaderUid) &&
+        data.mimeType is string && data.mimeType.size() >= 6 && data.mimeType.size() <= 120 && data.mimeType.matches('^image/.*$') &&
+        data.size is number && data.size >= 1 && data.size <= 500000 &&
+        data.data is string && data.data.size() >= 1 && data.data.size() <= 680000 &&
+        data.createdAt is timestamp;
+    }
+
     function isValidTypingIndicator(data) {
       return data.keys().hasAll(['uid', 'displayName', 'isTyping', 'updatedAt']) &&
         data.keys().hasOnly(['uid', 'displayName', 'isTyping', 'updatedAt']) &&
@@ -445,6 +478,18 @@ service cloud.firestore {
         incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt']);
     }
 
+    // 3b. Persistent compressed profile avatars (exact get only, zero list)
+    match /avatarMedia/{mediaId} {
+      allow get: if isSignedIn() && isValidId(mediaId);
+      allow list: if false;
+      allow create: if isVerified() &&
+        isValidId(mediaId) &&
+        isValidAvatarMedia(incoming()) &&
+        incoming().id == mediaId &&
+        incoming().uploaderUid == request.auth.uid &&
+        incoming().createdAt == request.time;
+    }
+
     // 4. Conversations & Subcollections
     match /conversations/{conversationId} {
       allow get: if isVerified() && isValidId(conversationId) && isConversationMember(conversationId);
@@ -564,6 +609,42 @@ service cloud.firestore {
           incoming().createdAt == existing().createdAt &&
           incoming().editedAt == request.time &&
           incoming().diff(existing()).affectedKeys().hasOnly(['text', 'encrypted', 'ciphertext', 'iv', 'keyEpoch', 'deleted', 'editedAt']);
+      }
+
+      // Persistent on-demand media blobs & chunks (fetched strictly by ID, never listed)
+      match /mediaBlobs/{mediaId} {
+        allow get: if isVerified() &&
+          isValidId(conversationId) &&
+          isValidId(mediaId) &&
+          isConversationMember(conversationId);
+        allow list: if false;
+        allow create: if isVerified() &&
+          isValidId(conversationId) &&
+          isValidId(mediaId) &&
+          isValidMediaBlob(incoming()) &&
+          incoming().id == mediaId &&
+          incoming().conversationId == conversationId &&
+          incoming().uploaderUid == request.auth.uid &&
+          incoming().createdAt == request.time &&
+          isConversationMember(conversationId);
+
+        match /chunks/{chunkId} {
+          allow get: if isVerified() &&
+            isValidId(conversationId) &&
+            isValidId(mediaId) &&
+            isValidId(chunkId) &&
+            isConversationMember(conversationId);
+          allow list: if false;
+          allow create: if isVerified() &&
+            isValidId(conversationId) &&
+            isValidId(mediaId) &&
+            isValidId(chunkId) &&
+            isValidMediaChunk(incoming()) &&
+            incoming().uploaderUid == request.auth.uid &&
+            incoming().createdAt == request.time &&
+            isConversationMember(conversationId) &&
+            get(/databases/$(database)/documents/conversations/$(conversationId)/mediaBlobs/$(mediaId)).data.uploaderUid == request.auth.uid;
+        }
       }
 
       match /typing/{userId} {

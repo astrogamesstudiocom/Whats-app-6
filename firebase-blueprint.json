@@ -898,6 +898,136 @@
         "createdAt"
       ]
     },
+    "MediaBlob": {
+      "title": "MediaBlob",
+      "description": "Metadata for persistent chunked media attachments stored in Firestore when object storage is unavailable.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "conversationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "uploaderUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "fileName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "mimeType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "size": {
+          "type": "number"
+        },
+        "chunkCount": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "conversationId",
+        "uploaderUid",
+        "fileName",
+        "mimeType",
+        "size",
+        "chunkCount",
+        "createdAt"
+      ]
+    },
+    "MediaChunk": {
+      "title": "MediaChunk",
+      "description": "Base64-encoded binary slice belonging to a MediaBlob, fetched strictly on demand.",
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "number"
+        },
+        "uploaderUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "data": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 550000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "index",
+        "uploaderUid",
+        "data",
+        "createdAt"
+      ]
+    },
+    "AvatarMedia": {
+      "title": "AvatarMedia",
+      "description": "Compressed profile photo payload stored on demand for cross-session avatar persistence.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "uploaderUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "mimeType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "size": {
+          "type": "number"
+        },
+        "data": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 680000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "uploaderUid",
+        "mimeType",
+        "size",
+        "data",
+        "createdAt"
+      ]
+    },
     "ConnectionCheck": {
       "title": "ConnectionCheck",
       "description": "Read-only connection verification document.",
@@ -952,6 +1082,12 @@
       },
       "description": "Exact SHA-256 email hash lookup for private contact discovery."
     },
+    "/avatarMedia/{mediaId}": {
+      "schema": {
+        "$ref": "#/entities/AvatarMedia"
+      },
+      "description": "Persistent compressed profile avatars fetched strictly by exact ID."
+    },
     "/conversations/{conversationId}": {
       "schema": {
         "$ref": "#/entities/Conversation"
@@ -975,6 +1111,18 @@
         "$ref": "#/entities/ChatMessage"
       },
       "description": "End-to-end encrypted messages belonging to a conversation."
+    },
+    "/conversations/{conversationId}/mediaBlobs/{mediaId}": {
+      "schema": {
+        "$ref": "#/entities/MediaBlob"
+      },
+      "description": "Persistent media attachment metadata scoped to conversation members."
+    },
+    "/conversations/{conversationId}/mediaBlobs/{mediaId}/chunks/{chunkId}": {
+      "schema": {
+        "$ref": "#/entities/MediaChunk"
+      },
+      "description": "Chunked media binary slices fetched strictly on demand by conversation members."
     },
     "/conversations/{conversationId}/typing/{userId}": {
       "schema": {

@@ -8,6 +8,7 @@
 5. **Immutable Authorship & Timestamps**: `createdAt`, `senderId`, `callerId`, and `createdBy` cannot be spoofed on create (`== request.auth.uid`, `== request.time`) or altered on update.
 6. **Terminal State Locking**: Once a call reaches a terminal status (`ended`, `rejected`, `missed`), `calls/{callId}` cannot revert to `ringing` or `active`.
 7. **Signal Isolation**: WebRTC signaling packets (`/calls/{callId}/signals/{signalId}`) can only be created by a call participant with `fromUid == request.auth.uid` and read only by `fromUid == request.auth.uid` or `toUid == request.auth.uid`.
+8. **Scoped On-Demand Media Blobs**: Conversation media (`/conversations/{conversationId}/mediaBlobs/{mediaId}` and `/chunks/{chunkId}`) and `/avatarMedia/{mediaId}` forbid `list` scraping, enforce `uploaderUid == request.auth.uid`, enforce strict byte bounds (`<= 550,000` chars per chunk, `<= 680,000` chars per avatar), and isolate conversation media to verified conversation members.
 
 ## 2. The "Dirty Dozen" Adversarial Payloads
 1. **Unverified Write**: Authenticated user with `email_verified: false` tries to create a message in `/conversations/c1/messages/m1` -> `PERMISSION_DENIED`.
@@ -20,5 +21,5 @@
 8. **ID Poisoning**: Verified User A tries to create a conversation with ID `"../../../etc/passwd"` or a 500-char string -> `PERMISSION_DENIED`.
 9. **Terminal Call Resurrection**: Participant tries to update `/calls/call1` from `status: "ended"` back to `status: "active"` -> `PERMISSION_DENIED`.
 10. **WebRTC Signal Impersonation**: User A writes a signal packet in `/calls/call1/signals/s1` with `fromUid: "userB"` -> `PERMISSION_DENIED`.
-11. **Oversized Payload (DoW)**: User A sends a message with `text` length 10,000 (> 4,000 limit) or `sdp` > 32,768 -> `PERMISSION_DENIED`.
-12. **Blanket User List Scraping**: User A tries to list `/users` without filtering `discoverable == true`, or attempts to list `/emailDirectory` -> `PERMISSION_DENIED`.
+11. **Oversized Payload (DoW)**: User A sends a message with `text` length 10,000 (> 4,000 limit) or media chunk > 550,000 chars -> `PERMISSION_DENIED`.
+12. **Blanket User / Media List Scraping**: User A tries to list `/users` without filtering `discoverable == true`, or attempts to list `/emailDirectory`, `/avatarMedia`, or `/conversations/c1/mediaBlobs` -> `PERMISSION_DENIED`.

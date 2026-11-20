@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Users } from 'lucide-react';
+import { useResolvedMediaUrl } from '../lib/media';
 
 interface AvatarProps {
   name: string;
@@ -41,15 +42,21 @@ export function Avatar({
   isGroup = false,
   ring = false,
 }: AvatarProps) {
+  const { resolvedUrl } = useResolvedMediaUrl(src);
   const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [resolvedUrl]);
+
   const hash = name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
   const tone = GRADIENT_TONES[hash % GRADIENT_TONES.length];
 
   return (
     <div className="relative inline-flex shrink-0">
-      {src && !imgError ? (
+      {resolvedUrl && !imgError ? (
         <img
-          src={src}
+          src={resolvedUrl}
           alt={name}
           referrerPolicy="no-referrer"
           onError={() => setImgError(true)}

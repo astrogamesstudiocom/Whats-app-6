@@ -11,7 +11,6 @@ import {
   ArrowLeft,
   Check,
   CheckCheck,
-  Download,
   FileText,
   Image as ImageIcon,
   Loader2,
@@ -32,7 +31,8 @@ import {
 } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { EmojiPicker } from './EmojiPicker';
-import { formatDuration, formatFileSize, uploadChatMedia } from '../lib/media';
+import { ResolvedMessageMedia } from './ResolvedMessageMedia';
+import { formatDuration, uploadChatMedia } from '../lib/media';
 import { getWallpaperClass, type ChatWallpaperId } from '../lib/theme';
 import {
   editMessage,
@@ -114,9 +114,6 @@ export function ChatWindow({
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
-  const [brokenMediaIds, setBrokenMediaIds] = useState<Set<string>>(
-    () => new Set()
-  );
 
   // Voice Note Recording State
   const [isRecording, setIsRecording] = useState(false);
@@ -126,6 +123,7 @@ export function ChatWindow({
   const audioChunksRef = useRef<Blob[]>([]);
   const recordTimerRef = useRef<number | null>(null);
   const recordStartRef = useRef<number>(0);
+  const sendingVoiceRef = useRef(false);
 
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
@@ -143,15 +141,6 @@ export function ChatWindow({
       }
       activeStreamRef.current = null;
     }
-  };
-
-  const markMediaBroken = (id: string) => {
-    setBrokenMediaIds((prev) => {
-      if (prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
   };
 
   // Subscribe to active conversation, members, messages, typing
@@ -226,6 +215,7 @@ export function ChatWindow({
   useEffect(() => {
     setShowEmojiPicker(false);
     setShowAttachMenu(false);
+    setUploadNotice(null);
     return () => {
       if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
       if (recordTimerRef.current) window.clearInterval(recordTimerRef.current);
@@ -503,7 +493,10 @@ export function ChatWindow({
   };
 
   const finishAndSendVoice = async () => {
-    if (!conversationId || !mediaRecorderRef.current) return;
+    if (!conversationId || !mediaRecorderRef.current || sendingVoiceRef.current) {
+      return;
+    }
+    sendingVoiceRef.current = true;
     const recorder = mediaRecorderRef.current;
     const durationSec = Math.max(
       1,
@@ -515,54 +508,54 @@ export function ChatWindow({
       recordTimerRef.current = null;
     }
 
-    if (recorder.state !== 'inactive') {
-      await new Promise<void>((resolve) => {
-        let settled = false;
-        const finish = () => {
-          if (settled) return;
-          settled = true;
-          stopActiveStream();
-          resolve();
-        };
-        const safetyTimer = window.setTimeout(finish, 2000);
-        const prevOnStop = recorder.onstop;
-        recorder.onstop = (ev) => {
-          window.clearTimeout(safetyTimer);
-          if (typeof prevOnStop === 'function') {
-            prevOnStop.call(recorder, ev);
-          }
-          finish();
-        };
-        try {
-          if (typeof recorder.requestData === 'function') {
-            recorder.requestData();
-          }
-          recorder.stop();
-        } catch {
-          window.clearTimeout(safetyTimer);
-          finish();
-        }
-      });
-    } else {
-      stopActiveStream();
-    }
-
-    mediaRecorderRef.current = null;
-    setIsRecording(false);
-    setRecordSeconds(0);
-
-    const mime = recorder.mimeType || audioChunksRef.current[0]?.type || 'audio/webm';
-    const blob = new Blob(audioChunksRef.current, { type: mime });
-    audioChunksRef.current = [];
-    if (blob.size === 0) {
-      setUploadNotice(
-        'No audio was captured. Record for at least 1 second before sending.'
-      );
-      return;
-    }
-
-    setUploadProgress(15);
     try {
+      if (recorder.state !== 'inactive') {
+        await new Promise<void>((resolve) => {
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            stopActiveStream();
+            resolve();
+          };
+          const safetyTimer = window.setTimeout(finish, 2000);
+          const prevOnStop = recorder.onstop;
+          recorder.onstop = (ev) => {
+            window.clearTimeout(safetyTimer);
+            if (typeof prevOnStop === 'function') {
+              prevOnStop.call(recorder, ev);
+            }
+            finish();
+          };
+          try {
+            if (typeof recorder.requestData === 'function') {
+              recorder.requestData();
+            }
+            recorder.stop();
+          } catch {
+            window.clearTimeout(safetyTimer);
+            finish();
+          }
+        });
+      } else {
+        stopActiveStream();
+      }
+
+      mediaRecorderRef.current = null;
+      setIsRecording(false);
+      setRecordSeconds(0);
+
+      const mime = recorder.mimeType || audioChunksRef.current[0]?.type || 'audio/webm';
+      const blob = new Blob(audioChunksRef.current, { type: mime });
+      audioChunksRef.current = [];
+      if (blob.size === 0) {
+        setUploadNotice(
+          'No audio was captured. Record for at least 1 second before sending.'
+        );
+        return;
+      }
+
+      setUploadProgress(15);
       const ext = mime.includes('mp4')
         ? 'm4a'
         : mime.includes('ogg')
@@ -592,6 +585,7 @@ export function ChatWindow({
         err instanceof Error ? err.message : 'Failed to upload voice note.'
       );
     } finally {
+      sendingVoiceRef.current = false;
       setUploadProgress(null);
     }
   };
@@ -885,112 +879,11 @@ export function ChatWindow({
                           </span>
                         ) : (
                           <>
-                            {msg.type === 'image' && msg.mediaUrl && (
-                              brokenMediaIds.has(msg.id) ? (
-                                <div
-                                  className={`mb-1.5 flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-xs ${
-                                    isOwn
-                                      ? 'bg-white/15 text-indigo-100'
-                                      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-                                  }`}
-                                >
-                                  <ImageIcon className="h-4 w-4 shrink-0" />
-                                  <span>
-                                    Photo unavailable ({msg.mediaName || 'image'})
-                                  </span>
-                                </div>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => setLightboxUrl(msg.mediaUrl!)}
-                                  className="mb-1.5 block overflow-hidden rounded-xl"
-                                >
-                                  <img
-                                    src={msg.mediaUrl}
-                                    alt={msg.mediaName || 'Shared image'}
-                                    referrerPolicy="no-referrer"
-                                    onError={() => markMediaBroken(msg.id)}
-                                    className="max-h-72 w-auto rounded-xl object-cover transition-transform duration-200 hover:scale-[1.02]"
-                                  />
-                                </button>
-                              )
-                            )}
-
-                            {msg.type === 'video' && msg.mediaUrl && (
-                              <video
-                                src={msg.mediaUrl}
-                                controls
-                                className="mb-1.5 max-h-72 w-full rounded-xl bg-black"
-                              />
-                            )}
-
-                            {msg.type === 'audio' && msg.mediaUrl && (
-                              brokenMediaIds.has(msg.id) ? (
-                                <div
-                                  className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs ${
-                                    isOwn
-                                      ? 'bg-white/15 text-indigo-100'
-                                      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-                                  }`}
-                                >
-                                  <Mic className="h-4 w-4 shrink-0" />
-                                  <span>
-                                    Voice message unavailable
-                                    {typeof msg.audioDuration === 'number'
-                                      ? ` (${formatDuration(msg.audioDuration)})`
-                                      : ''}
-                                  </span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-2.5 py-0.5">
-                                  <audio
-                                    src={msg.mediaUrl}
-                                    controls
-                                    preload="metadata"
-                                    onError={() => markMediaBroken(msg.id)}
-                                    className="h-9 max-w-[230px] sm:max-w-[260px]"
-                                  />
-                                  {typeof msg.audioDuration === 'number' && (
-                                    <span className="rounded-md bg-black/10 px-1.5 py-0.5 font-mono text-[11px] opacity-90 tabular-nums dark:bg-white/10">
-                                      {formatDuration(msg.audioDuration)}
-                                    </span>
-                                  )}
-                                </div>
-                              )
-                            )}
-
-                            {msg.type === 'document' && msg.mediaUrl && (
-                              <a
-                                href={msg.mediaUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                download={msg.mediaName}
-                                className={`mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-medium transition-colors ${
-                                  isOwn
-                                    ? 'bg-white/15 text-white hover:bg-white/25'
-                                    : 'bg-slate-100 text-slate-800 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700'
-                                }`}
-                              >
-                                <div
-                                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                                    isOwn
-                                      ? 'bg-white/20 text-white'
-                                      : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400'
-                                  }`}
-                                >
-                                  <FileText className="h-4 w-4" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="truncate font-semibold">
-                                    {msg.mediaName || 'Attachment'}
-                                  </p>
-                                  <p className="font-mono text-[10px] opacity-75 tabular-nums">
-                                    {formatFileSize(msg.mediaSize)}
-                                  </p>
-                                </div>
-                                <Download className="h-4 w-4 shrink-0 opacity-80" />
-                              </a>
-                            )}
+                            <ResolvedMessageMedia
+                              msg={msg}
+                              isOwn={isOwn}
+                              onOpenLightbox={(url) => setLightboxUrl(url)}
+                            />
 
                             {msg.text && (
                               <p className="whitespace-pre-wrap break-words leading-relaxed">
@@ -1303,13 +1196,14 @@ export function ChatWindow({
 
               <button
                 type="button"
+                disabled={uploadProgress !== null}
                 onClick={() => {
                   setShowAttachMenu((v) => !v);
                   setShowEmojiPicker(false);
                 }}
                 title="Share Media or Document"
                 aria-label="Open attachment menu"
-                className={`flex h-11 w-11 items-center justify-center rounded-xl border transition-all ${
+                className={`flex h-11 w-11 items-center justify-center rounded-xl border transition-all disabled:opacity-40 ${
                   showAttachMenu
                     ? 'border-indigo-500 bg-indigo-50 text-indigo-600 dark:border-indigo-500/60 dark:bg-indigo-950/60 dark:text-indigo-400'
                     : 'border-slate-200/90 text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800'
@@ -1380,10 +1274,11 @@ export function ChatWindow({
             ) : (
               <button
                 type="button"
+                disabled={uploadProgress !== null}
                 onClick={() => void startVoiceRecording()}
                 title="Record Voice Message"
                 aria-label="Record Voice Message"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200/90 text-slate-700 transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 active:scale-95 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200/90 text-slate-700 transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 active:scale-95 disabled:opacity-40 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 <Mic className="h-4.5 w-4.5" />
               </button>

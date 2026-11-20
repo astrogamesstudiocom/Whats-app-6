@@ -322,22 +322,29 @@ messaging.onBackgroundMessage((payload) => {
         return;
       }
 
+      let resolvedMimeType = '';
       const metaPath = `${diskPath}.meta.json`;
       if (fs.existsSync(metaPath)) {
         try {
           const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
           if (meta.mimeType) {
-            res.setHeader('Content-Type', meta.mimeType);
+            resolvedMimeType = String(meta.mimeType);
           }
         } catch {
           // ignore malformed meta
         }
       }
 
-      res.setHeader('Accept-Ranges', 'bytes');
-      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-      res.setHeader('Cache-Control', 'private, max-age=86400');
-      res.sendFile(diskPath);
+      const extraHeaders: Record<string, string> = {
+        'Accept-Ranges': 'bytes',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
+        'Cache-Control': 'private, max-age=86400',
+      };
+      if (resolvedMimeType) {
+        extraHeaders['Content-Type'] = resolvedMimeType;
+      }
+
+      res.sendFile(diskPath, { headers: extraHeaders });
     }
   );
 
